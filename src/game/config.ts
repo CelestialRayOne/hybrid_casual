@@ -1,7 +1,7 @@
 // Game-wide constants for the view layer. Pure (no Phaser), so tests can import it.
 
 /** Placeholder title. The final name is decided at the end (CLAUDE.md); change it only here. */
-export const GAME_TITLE = 'Gem Dig';
+export const GAME_TITLE = 'Gem Rush';
 
 /**
  * Logical base for `Scale.EXPAND`. 720x1280 is a 9:16 portrait base that is exactly 2x a 360-CSS-px phone,

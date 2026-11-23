@@ -1,9 +1,9 @@
 {
-  "name": "gem-dig",
+  "name": "gem-rush",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Gem dig block puzzle (working title TBD)",
+  "description": "Gem Rush: gem dig block puzzle",
   "engines": {
     "node": ">=24.5 <27"
   },

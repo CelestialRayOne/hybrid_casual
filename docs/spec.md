@@ -1,4 +1,4 @@
-# MVP spec: gem dig puzzle (working title TBD)
+# MVP spec: Gem Rush, a gem dig puzzle (name decided by the owner 2026-11-23)
 
 **Status: APPROVED by owner 2026-11-20.** The v2 changes (randomness, gem powers, relic boons, perks screen with respec, sound) were requested by the owner on 2026-11-20 and designed by Claude under delegation. Tech, platform and asset rules live in `CLAUDE.md`.
 

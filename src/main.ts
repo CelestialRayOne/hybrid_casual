@@ -78,6 +78,22 @@ window.addEventListener('pagehide', () => {
   telemetry.endSession();
 });
 
+/**
+ * Render-resolution scale for the portrait base: the canvas gets about one pixel per DEVICE pixel, never more
+ * than the 720x1280 base. Without this, EXPAND always renders 1280 px tall (a 1280x720 window drew 2275x1280,
+ * ~3x the pixels on screen), which made Chrome crawl when it falls back to CPU rendering (no GPU).
+ * Layout is size-independent (it works in game px per CSS px), so only sharpness and cost change.
+ */
+function renderScale(): number {
+  const el = document.getElementById('game');
+  const cssW = el?.clientWidth || window.innerWidth;
+  const cssH = el?.clientHeight || window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const fit = Math.min(cssW / BASE_WIDTH, cssH / BASE_HEIGHT) * dpr;
+  return Math.min(1, Math.max(0.4, fit));
+}
+let baseScale = renderScale();
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -87,14 +103,28 @@ const game = new Phaser.Game({
   // Sound is our own AudioService (no AudioContext before a gesture); Phaser's sound system stays off.
   audio: { noAudio: true },
   input: { activePointers: 2 },
-  render: { antialias: true, powerPreference: 'high-performance' },
+  // antialiasGL = WebGL MSAA: useless for our sprite art and very costly when Chrome renders on the CPU.
+  render: { antialias: true, antialiasGL: false, powerPreference: 'high-performance' },
   scale: {
     mode: Phaser.Scale.EXPAND,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: BASE_WIDTH,
-    height: BASE_HEIGHT,
+    width: Math.round(BASE_WIDTH * baseScale),
+    height: Math.round(BASE_HEIGHT * baseScale),
   },
   scene: [BootScene, PlayScene, LevelEndScene, PerkPickScene, PerksScene, LevelSelectScene, SettingsScene, DebugScene],
 });
+
+// Keep the render resolution matched to the screen as the window, iframe or device pixel ratio changes.
+function updateRenderScale(): void {
+  const k = renderScale();
+  if (Math.abs(k - baseScale) < 0.02) return;
+  baseScale = k;
+  const cfg = game.config as unknown as { width: number; height: number };
+  cfg.width = Math.round(BASE_WIDTH * k);
+  cfg.height = Math.round(BASE_HEIGHT * k);
+  game.scale.refresh();
+}
+window.addEventListener('resize', updateRenderScale);
+window.visualViewport?.addEventListener('resize', updateRenderScale);
 
 if (flags.debug || import.meta.env.DEV) installTestHook(game);

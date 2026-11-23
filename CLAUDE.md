@@ -4,7 +4,7 @@ Guidance for Claude Code (and any other agent) working in this repo. Read this b
 
 ## Project
 
-A web puzzle game, **working title TBD** (do not invent a final name in code; use `GAME_TITLE` from one config constant).
+A web puzzle game, **Gem Rush** (owner decision 2026-11-23). The name lives in one place: `GAME_TITLE` in `src/game/config.ts` (and the `<title>` in `index.html`).
 
 - **Goal:** an MVP that answers one question: *does the game play?* Fun, understandable, does it retain.
 - **Target portal:** CrazyGames, **Basic Launch first**, Full Launch only if KPIs earn the invite.
