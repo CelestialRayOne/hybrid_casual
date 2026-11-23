@@ -200,6 +200,7 @@ export function planTimeline(events: readonly CoreEvent[], opts: PlanOptions = {
   let power: PowerTiming | null = null; // the power that opened the current phase, if any
   let chainAt = 0; // consequences of a boon wait for the reveal
   const chipAt = new Map<number, number>(); // last crust chip time per relic in this phase
+  let geodeAt: number = TIMING.awardAt; // the last geode's offset: its power award lands with it
 
   const hit = (cells: readonly Pos[], fallback: number): number => {
     if (!power || !cells.length) return fallback;
@@ -272,12 +273,15 @@ export function planTimeline(events: readonly CoreEvent[], opts: PlanOptions = {
         break;
       case 'powerCharged':
       case 'powerSkipped':
-        offset = event.source === 'group' || event.source === 'geode' ? TIMING.awardAt : late;
+        offset = event.source === 'geode' ? geodeAt : event.source === 'group' ? TIMING.awardAt : late;
         break;
       case 'geodeCleared':
+        // A power reaches the geode at its hit time; a tapped group pays at the award time.
+        offset = geodeAt = power ? hit([event.at], TIMING.awardAt) : TIMING.awardAt;
+        break;
       case 'bonusMove':
       case 'reforgeTokenEarned':
-        offset = event.type === 'geodeCleared' ? TIMING.awardAt : late;
+        offset = late;
         break;
       default:
         offset = TIMING.awardAt;

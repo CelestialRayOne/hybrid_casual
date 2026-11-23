@@ -141,6 +141,13 @@ export function bigGroupRoll(state: LevelState, size: number, events: CoreEvent[
   if (drawFloat(state) < TOKEN_BIG_GROUP_CHANCE) awardToken(state, 'big_group', events);
 }
 
+/** A geode gem was cleared (by a group or a power): it grants a random Lv1 power. */
+export function payGeode(state: LevelState, at: Pos, color: GemColor, events: CoreEvent[]): void {
+  state.stats.geodes++;
+  events.push({ type: 'geodeCleared', at: { ...at }, color });
+  chargeRandomPower(state, 1, 'geode', events);
+}
+
 /**
  * Rewards of a real group clear (a tap, or Wildfire's tapped group), in this order: Brilliant Cut move,
  * the power charge (threshold/bands in tray.ts), geodes (each grants a random Lv1 power), the 20+ token roll.
@@ -155,10 +162,6 @@ export function groupRewards(state: LevelState, cells: Pos[], color: GemColor, g
   }
   const level = chargeLevel(state, size);
   if (level !== null) chargePower(state, color, level, 'group', events);
-  for (const g of geodes) {
-    state.stats.geodes++;
-    events.push({ type: 'geodeCleared', at: { ...g }, color });
-    chargeRandomPower(state, 1, 'geode', events);
-  }
+  for (const g of geodes) payGeode(state, g, color, events);
   bigGroupRoll(state, size, events);
 }

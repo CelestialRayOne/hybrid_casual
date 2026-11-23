@@ -121,7 +121,7 @@ Actions only accept positions inside the visible window (`out_of_view`). All ran
   - otherwise it takes a free slot;
   - otherwise it replaces the lowest level in that slot (tie: the oldest, lowest `seq`); if that lowest level is still higher than the new power's, the new power is skipped (`powerSkipped`, toast + telemetry).
   Random powers (geode, Star Amulet, Volatile Mix) can be any of the 5 kinds, even on 4-colour levels.
-- **What charges:** only real group clears, which means a tap or **Wildfire's tapped group** (2+). That group behaves exactly like a tap: it charges, pays geodes, triggers Brilliant Cut and rolls for the token. Gems destroyed by a power (burnt, swept, struck, drilled) never charge powers and never pay geodes. This prevents endless power chains.
+- **What charges:** only real group clears, which means a tap or **Wildfire's tapped group** (2+). That group behaves exactly like a tap: it charges, pays geodes, triggers Brilliant Cut and rolls for the token. Gems destroyed by a power (burnt, swept, struck, drilled) never charge powers. This prevents endless power chains. Geodes are the exception: a geode destroyed by a power still pays its random Lv1 power (`geodeCleared` + `powerCharged` source geode, timed to when the power reaches it; once per geode, so Wildfire's group geodes are not paid twice). Owner playtest 2026-11-23.
 - **Touch rule:** every power touches the tapped cell, so bedrock there shatters the whole slab, for every power. Powers only reach the visible window and never destroy relics; they chip crusts (times the Ancient Key multiplier).
 - **Wildfire:**
   - Clears the tapped gem's group, even of size 1. On a non-gem tap, the fire starts at that cell.

@@ -57,7 +57,7 @@ Each **attempt** gets a fresh random seed, while the level's structure stays aut
   - **Gem colours:** re-rolled, using the level's clustering.
   - **Bonus relics:** 0–3 extra relics at random spots, so a level can have more relics than its goal.
   - **Relic types:** each type grants a different boon (see below).
-  - **Geodes:** rare sparkling geode gems, about 1 in 60. Clearing one in a group grants a random level-1 power.
+  - **Geodes:** rare sparkling geode gems, about 1 in 60. Clearing one in a group, or destroying it with a power, grants a random level-1 power (owner playtest 2026-11-23).
 - **Boss levels** (owner request 2026-11-20): a few levels are **boss levels**, shown to the player with a boss badge, a "BOSS LEVEL" intro banner and a distinct level-select tile. They roll many bonus relics and more geodes and act as the climax of each stretch of levels.
 - **Calibration:** move limits are calibrated over many random attempts, so the win-rate targets hold on average while attempts still vary.
 

@@ -1,7 +1,7 @@
 // Player actions. Each mutates `state` in place and returns the ordered events for the view.
 // Resolution order: docs/architecture.md, "Resolution order inside one action".
 import { EMPTY, NEIGHBOURS, blockColor, cellAt, findGroup, isVisible, setCell } from './board';
-import { chipRelics, damageDirt, drawFloat, groupRewards, key, unkey } from './effects';
+import { chipRelics, damageDirt, drawFloat, groupRewards, key, payGeode, unkey } from './effects';
 import { runPower } from './powers';
 import { finishAction, stars } from './resolve';
 import { CONTINUE_MOVES } from './rules';
@@ -79,7 +79,14 @@ function triggerArmed(state: LevelState, at: Pos): ActionResult {
   const level = clampLevel(power.level + state.rules.temperedBonus);
   const out = runPower(state, power.color, level, at, index, events);
   state.stats.powersUsed++;
-  if (out.group.length >= 2 && out.groupColor !== null) groupRewards(state, out.group, out.groupColor, out.groupGeodes, events);
+  const groupPaid = out.group.length >= 2 && out.groupColor !== null;
+  if (groupPaid) groupRewards(state, out.group, out.groupColor!, out.groupGeodes, events);
+  // Geodes the power destroyed pay out too (Wildfire's group geodes were already paid above).
+  for (const d of out.destroyed) {
+    if (!d.geode) continue;
+    if (groupPaid && out.groupGeodes.some((g) => g.x === d.at.x && g.y === d.at.y)) continue;
+    payGeode(state, d.at, d.color, events);
+  }
   if (state.rules.volatileChance > 0 && drawFloat(state) < state.rules.volatileChance) {
     chargeRandomPower(state, 1, 'volatile', events);
   }

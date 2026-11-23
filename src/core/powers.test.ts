@@ -183,14 +183,33 @@ describe('Wildfire (ruby)', () => {
     expect(t.effect.burnt.map((b) => b.step)).toEqual([1, 2, 2]);
   });
 
-  it('the tapped group is a real group clear (charges at 6+, Brilliant Cut); burnt gems never charge or pay geodes', () => {
-    // 6 rubies tapped; 7 sapphires nearby get burnt (a 7-group would charge on a tap); a geode among them pays nothing.
+  it('the tapped group is a real group clear (charges at 6+, Brilliant Cut); burnt gems never charge, a burnt geode still pays', () => {
+    // 6 rubies tapped; 7 sapphires nearby get burnt (a 7-group would charge on a tap); a geode among them pays its Lv1 power.
     const s = raw(['rrrrrr..', 'bbbbbbb.', ...checker(8).slice(0, 8), 'rbgyrbgy', 'gyrbgyrA'], { geodes: [[0, 1]] });
     const events = fire(s, 0, 5, { x: 0, y: 0 });
     const charged = ofType(events, 'powerCharged');
-    expect(charged).toEqual([{ type: 'powerCharged', color: 0, level: 1, index: 0, merged: false, source: 'group' }]);
-    expect(ofType(events, 'geodeCleared')).toHaveLength(0);
+    expect(charged[0]).toEqual({ type: 'powerCharged', color: 0, level: 1, index: 0, merged: false, source: 'group' });
+    expect(charged.slice(1).map((e) => [e.level, e.source])).toEqual([[1, 'geode']]);
+    expect(ofType(events, 'geodeCleared')).toEqual([{ type: 'geodeCleared', at: { x: 0, y: 1 }, color: 1 }]);
     expect(s.stats.groups).toBe(1);
+    expect(s.stats.geodes).toBe(1);
+  });
+
+  it('a geode in the tapped group pays once (not again as a destroyed gem)', () => {
+    const s = raw(['rr......', ...checker(9).slice(1), 'rbgyrbgy', 'gyrbgyrA'], { geodes: [[1, 0]] });
+    const events = fire(s, 0, 1, { x: 0, y: 0 });
+    expect(ofType(events, 'geodeCleared')).toHaveLength(1);
+    expect(s.stats.geodes).toBe(1);
+  });
+
+  it('every gem-destroying power pays the geodes it destroys', () => {
+    // Tidal Wave Lv1 clears the tapped row; Chain Lightning strikes the tapped gem first; Drill bores down.
+    for (const [color, at] of [[1, { x: 0, y: 0 }], [3, { x: 2, y: 0 }], [4, { x: 2, y: 0 }]] as const) {
+      const s = raw(['rbgyrbgy', ...checker(9).slice(1), 'rbgyrbgy', 'gyrbgyrA'], { geodes: [[2, 0]] });
+      const events = fire(s, color, 1, at);
+      expect(ofType(events, 'geodeCleared')).toEqual([{ type: 'geodeCleared', at: { x: 2, y: 0 }, color: 2 }]);
+      expect(ofType(events, 'powerCharged').map((e) => [e.level, e.source])).toEqual([[1, 'geode']]);
+    }
   });
 
   it('a geode in the tapped group pays a random Lv1 power', () => {

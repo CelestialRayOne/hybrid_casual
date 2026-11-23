@@ -6,9 +6,11 @@
 // - Bedrock: any slab the power touches (per-power rule below) shatters whole.
 // - Powers never destroy relics; they chip crusts (x the Ancient Key multiplier), once per relic per power
 //   (Chain Lightning: once per relic per strike).
-// - Gems destroyed by a power never charge powers and never pay out geodes. The one exception is Wildfire's
-//   initial tapped GROUP: it is a real group clear (charges a power at the threshold, pays geodes, Brilliant
-//   Cut, the 20+ token roll), exactly like a tap. This prevents endless power chains.
+// - Gems destroyed by a power never charge powers. The one exception is Wildfire's initial tapped GROUP: it is
+//   a real group clear (charges a power at the threshold, pays geodes, Brilliant Cut, the 20+ token roll),
+//   exactly like a tap. This prevents endless power chains.
+// - Geodes destroyed by a power still pay out their random Lv1 power (owner playtest 2026-11-23: a geode that
+//   vanished without its power felt wrong). `destroyed` flags them; actions.ts pays them.
 //
 // Per power ("cleared" = cells that deal adjacency damage):
 // - Wildfire: clears the tapped gem's group (any size, even 1). Fire then spreads from the cleared cells (or
@@ -60,7 +62,7 @@ export const powerKind = (color: GemColor): PowerKind => POWER_KINDS[color] as P
 export interface PowerOutcome {
   effect: PowerEffect;
   cells: Pos[];
-  destroyed: { at: Pos; color: GemColor }[];
+  destroyed: { at: Pos; color: GemColor; geode?: true }[];
   /** Wildfire only: the tapped group that counts as a real group clear. */
   group: Pos[];
   groupColor: GemColor | null;
@@ -111,7 +113,7 @@ function visibleCells(state: LevelState): Pos[] {
 function destroyGem(state: LevelState, p: Pos, out: PowerOutcome['destroyed']): void {
   const c = cellAt(state, p.x, p.y);
   if (c?.kind !== 'block') return;
-  out.push({ at: { x: p.x, y: p.y }, color: c.color });
+  out.push(c.geode ? { at: { x: p.x, y: p.y }, color: c.color, geode: true } : { at: { x: p.x, y: p.y }, color: c.color });
   setCell(state, p.x, p.y, EMPTY());
 }
 
