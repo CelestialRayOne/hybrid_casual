@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Art preview (dev only)</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #3a2418; font-family: system-ui, sans-serif; }
+      body.board { overflow: hidden; height: 100%; }
+      #game canvas { display: block; }
+      #bar {
+        position: fixed; right: 6px; bottom: 6px; z-index: 2; display: flex; gap: 4px;
+        background: rgba(20, 10, 4, 0.75); padding: 4px; border-radius: 8px; font-size: 11px;
+      }
+      #bar a { color: #ffe9c2; text-decoration: none; padding: 3px 6px; border-radius: 5px; background: rgba(255,255,255,0.08); }
+      #bar a.on { background: #f2b631; color: #3a200e; }
+      #bar span { color: #ffe9c2; padding: 3px 4px; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="bar"></div>
+    <script type="module" src="./art-preview.ts"></script>
+  </body>
+</html>

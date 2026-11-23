@@ -1,0 +1,21 @@
+# Raw source art (owner's ESR material, ~213 MB). Never committed; curated copies go in public/.
+/assets/
+*.sprite
+*.dc6
+*.rar
+
+# Build / tooling
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+Thumbs.db
+.env*
+*.tsbuildinfo
+.vite/
+
+# Regenerable sound previews (export with SOUND_EXPORT, see CLAUDE.md)
+docs/sounds/

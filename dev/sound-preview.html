@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sound preview (dev only)</title>
+    <style>
+      :root { color-scheme: dark; --bg: #2a1a10; --panel: #3a2418; --ink: #ffe9c2; --dim: #c9a985; --accent: #f2b631; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      p { margin: 0 0 12px; color: var(--dim); }
+      .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; background: var(--panel); padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; }
+      label { display: flex; align-items: center; gap: 6px; }
+      select, input { background: #20140c; color: var(--ink); border: 1px solid #6b4a30; border-radius: 6px; padding: 4px 6px; font: inherit; }
+      input[type=number] { width: 64px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); margin: 14px 0 6px; }
+      .grid { display: flex; flex-wrap: wrap; gap: 6px; }
+      button { background: #5a3a24; color: var(--ink); border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+      button:hover { background: #744c2f; }
+      button.seq { background: var(--accent); color: #3a200e; }
+      canvas { width: 100%; height: 90px; background: #1a0f08; border-radius: 8px; margin-top: 12px; display: block; }
+      #info { font-family: ui-monospace, monospace; font-size: 12px; color: var(--dim); margin-top: 6px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>Sound preview</h1>
+    <p>Dev only. Every button plays through the real game AudioService (same buffers, variation and limiter).</p>
+    <div class="controls">
+      <label>Colour <select id="color"></select></label>
+      <label>Level <input id="level" type="number" min="1" max="5" value="1" /></label>
+      <label>Group size <input id="size" type="number" min="2" max="40" value="4" /></label>
+      <label>Index <input id="index" type="number" min="0" max="20" value="0" /></label>
+      <label>Pitch <input id="pitch" type="number" min="-12" max="24" step="1" placeholder="auto" /></label>
+      <label>Volume <input id="volume" type="range" min="0" max="1" step="0.05" value="1" /></label>
+    </div>
+    <div id="groups"></div>
+    <canvas id="wave" width="1200" height="180"></canvas>
+    <div id="info"></div>
+    <script type="module" src="./sound-preview.ts"></script>
+  </body>
+</html>
