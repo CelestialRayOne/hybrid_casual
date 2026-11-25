@@ -63,7 +63,7 @@ describe('previewPower', () => {
     const s = armed(4, 1, ['smith_tempered']);
     const at = { x: 2, y: s.scroll };
     expect(previewPower(s, at)!.level).toBe(2);
-    expect(previewPower(s, at)!.cells).toHaveLength(5);
+    expect(previewPower(s, at)!.cells).toHaveLength(6 + 2); // Lv2: 6 rows + break-through 1 each side
   });
 
   it('is null when nothing is armed or the cell is out of view', () => {

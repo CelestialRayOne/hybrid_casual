@@ -259,6 +259,23 @@ export class PowerFx {
         if (lot % 3 === 0) this.fx.greenSparks(pos.x, pos.y, 2);
       });
     }
+    // Fissures: a glowing crack runs cell by cell out of the square; gems on it rattle, ground bursts.
+    for (const f of fxe.fissures) {
+      f.forEach((p, i) => {
+        const at = t.cellTime(p);
+        const kind = this.cellKind(p);
+        if (kind === 'block') this.board.rattle(p, at);
+        const pos = this.scr(p);
+        this.after(at, () => {
+          this.fx.glow(pos.x, pos.y, EARTH, 0.25, 1.1, 220, 0.7);
+          if (kind === 'block' || kind === 'empty') return;
+          this.board.rattleTerrain(p, 0);
+          this.fx.rockBurst(pos.x, pos.y, 2);
+          this.fx.dustBurst(pos.x, pos.y, 3, kind === 'bedrock' ? 'stone' : 'dirt');
+          if (i === f.length - 1) this.fx.greenSparks(pos.x, pos.y, 3);
+        });
+      });
+    }
   }
 
   private cellKind(p: Pos): string {
@@ -350,6 +367,23 @@ export class PowerFx {
           this.fx.sparkBurst(x, y, 2, DRILL);
           if (k % 2 === 0) this.fx.dustBurst(x, y, 2, 'dirt');
           this.fx.glow(x, y - this.c * 0.2, DRILL, 0.3, 1.2, 200, 0.5);
+        });
+      }
+    }
+    // Break-through: a burst where the bit stops, then the blast runs sideways along the row.
+    if (fxe.blast.length) {
+      const tip = this.scr({ x: fxe.cols[0]!, y: fxe.to });
+      this.after(lead + travel, () => {
+        this.fx.shake(this.c * 0.09, 200);
+        this.fx.glow(tip.x, tip.y, DRILL, 0.5, 2.6, 300, 0.85);
+        this.fx.shockRing(tip.x, tip.y, DRILL, 0.35, 2.4, 360);
+      });
+      for (const p of fxe.blast) {
+        const pos = this.scr(p);
+        this.after(t.cellTime(p), () => {
+          this.fx.rockBurst(pos.x, pos.y, 2);
+          this.fx.sparkBurst(pos.x, pos.y, 2, DRILL);
+          this.fx.glow(pos.x, pos.y, DRILL, 0.3, 1.3, 200, 0.6);
         });
       }
     }

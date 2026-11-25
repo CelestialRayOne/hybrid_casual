@@ -75,6 +75,9 @@ export function lightningInterval(strikes: number): number {
 }
 
 /** Drill: lead-in before the bit moves, and ms per row bored. */
+/** Per column of the Drill's sideways break-through. */
+export const DRILL_BLAST_MS = 40;
+
 export function drillPace(e: { from: number; to: number }): { lead: number; perRow: number; rows: number } {
   const rows = Math.max(1, e.to - e.from + 1);
   return { lead: 130, perRow: Math.min(78, 560 / rows), rows };
@@ -116,12 +119,25 @@ export function powerTiming(e: PowerEvent): PowerTiming {
       return { duration, hitTime: time, cellTime: time };
     }
     case 'earthshaker': {
-      // A stomp, then shock rings roll out from the origin square by square.
+      // A stomp, then shock rings roll out from the origin square by square; the fissures crack on outwards
+      // from the edge of the square, cell by cell.
       const stomp = 150;
       const perRing = 105;
+      const perCrack = 60;
       const origin = fx.origin.length ? fx.origin : [e.at];
-      const duration = stomp + (fx.radius + 1) * perRing + 300;
+      const crackAt = new Map<number, number>();
+      let last = stomp + (fx.radius + 1) * perRing;
+      for (const f of fx.fissures) {
+        f.forEach((p, i) => {
+          const at = stomp + fx.radius * perRing + (i + 1) * perCrack;
+          crackAt.set(p.y * 64 + p.x, at);
+          last = Math.max(last, at);
+        });
+      }
+      const duration = last + 300;
       const time = (p: Pos) => {
+        const c = crackAt.get(p.y * 64 + p.x);
+        if (c !== undefined) return c;
         let d = Infinity;
         for (const o of origin) d = Math.min(d, cheb(o, p));
         return stomp + Math.min(d, fx.radius + 1) * perRing;
@@ -145,10 +161,12 @@ export function powerTiming(e: PowerEvent): PowerTiming {
       };
     }
     case 'drill': {
-      // The bit spins up at the tapped cell, then bores down row by row.
+      // The bit spins up at the tapped cell, bores down row by row, then breaks through sideways.
       const { lead, rows, perRow } = drillPace(fx);
-      const duration = Math.round(lead + rows * perRow + 260);
-      const time = (p: Pos) => lead + Math.max(0, Math.min(rows, p.y - fx.from)) * perRow;
+      const side = (p: Pos) => (fx.blast.some((b) => b.x === p.x && b.y === p.y) ? Math.min(...fx.cols.map((c) => Math.abs(c - p.x))) : 0);
+      const reach = fx.blast.reduce((m, b) => Math.max(m, side(b)), 0);
+      const duration = Math.round(lead + rows * perRow + reach * DRILL_BLAST_MS + 260);
+      const time = (p: Pos) => lead + Math.max(0, Math.min(rows, p.y - fx.from)) * perRow + side(p) * DRILL_BLAST_MS;
       return { duration, hitTime: time, cellTime: time };
     }
   }

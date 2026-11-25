@@ -193,12 +193,15 @@ export type PowerEffect =
   | { power: 'wildfire'; group: Pos[]; burnt: { at: Pos; step: number }[] }
   /** Rows and columns swept (visible ones only). */
   | { power: 'tidal'; rows: number[]; cols: number[] }
-  /** `origin` = the tapped group (or the tapped cell); `area` = every cell shaken (Chebyshev radius). */
-  | { power: 'earthshaker'; origin: Pos[]; radius: number; area: Pos[] }
+  /**
+   * `origin` = the tapped group (or the tapped cell); `area` = the certain shaken square (Chebyshev radius);
+   * `fissures` = random cracks from the tapped cell, each its cells outside `area` in travel order.
+   */
+  | { power: 'earthshaker'; origin: Pos[]; radius: number; area: Pos[]; fissures: Pos[][] }
   /** Strikes in order (the tapped gem first, if the tap was on a gem). */
   | { power: 'lightning'; strikes: Pos[] }
   /** `path` top-down, column by column order within a row (3 wide at Lv5). */
-  | { power: 'drill'; cols: number[]; from: number; to: number; path: Pos[] };
+  | { power: 'drill'; cols: number[]; from: number; to: number; path: Pos[]; blast: Pos[] };
 
 export type PowerSource = 'group' | 'geode' | 'boon' | 'volatile' | 'rescue';
 export type ReforgeReason = 'big_group' | 'bonus_relics' | 'three_stars';

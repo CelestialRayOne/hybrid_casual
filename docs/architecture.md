@@ -50,8 +50,8 @@ stars(state); levelResult(state): { status, stars, collected, goal, bonusCollect
 
 // tray.ts / powers.ts (tables for the view and tests)
 chargeLevel(state, size); powerThreshold(state); powerKind(color)
-WILDFIRE_SPREAD [3,6,10,15,22]; TIDAL_LINES; SHAKER_RADIUS [1,1,2,2,3]; SHAKER_DIRT [2,3,3,4,5]; SHAKER_CRUST [1,1,2,2,2];
-LIGHTNING_STRIKES [3,5,8,12,16]; DRILL_ROWS [3,5,8,12,all]
+WILDFIRE_SPREAD [3,6,10,15,22]; TIDAL_LINES; SHAKER_RADIUS [1,1,2,2,3]; SHAKER_DIRT [2,2,3,3,3]; SHAKER_CRUST [1,1,2,2,3]; SHAKER_FISSURES [2,2,3,3,4]; SHAKER_FISSURE_LENGTH [2,3,3,4,4];
+LIGHTNING_STRIKES [3,5,8,12,16]; DRILL_ROWS [4,6,8,all,all]; DRILL_HALF_WIDTH [0,0,0,0,1]; DRILL_BLAST [1,1,2,2,row]; drillShape(state, at, level)
 
 // board.ts
 isVisible, isRelicVisible, isRelicGone (a bonus relic that scrolled away), isStranded, isStuckGem, relicCells, cloneState, maxScroll
@@ -76,9 +76,9 @@ LEVEL_MOVES; calibrateLevel(def, runs?); targetWinRate(id)
 - `powerTriggered {trayIndex, color, power, level, at, effect, cells, destroyed}`. `effect` holds the per-power pattern:
   - wildfire `{group, burnt[{at, step}]}`;
   - tidal `{rows, cols}`;
-  - earthshaker `{origin, radius, area}`;
+  - earthshaker `{origin, radius, area, fissures}` (`area` = the certain square, `fissures` = each crack's cells outside it, in travel order);
   - lightning `{strikes}`;
-  - drill `{cols, from, to, path}`.
+  - drill `{cols, from, to, path, blast}` (`path` includes the `blast` cells).
   `cells` and `destroyed` are in animation order.
 - Damage and relics: `dirtDamaged`, `bedrockShattered`, `crustChipped`, `relicCollected {relicId, boon, bonus, collected, goal}`, `boonGained {boon, stacks, relicId}`.
 - `bonusMove {amount, source: brilliant | sun_coin | continue}`.
@@ -98,7 +98,7 @@ Fail reasons: `not_playing`, `not_a_group`, `out_of_view`, `no_power`, `power_ar
    - **Power trigger:** take the armed power out of the tray. Effective level = level + Tempered (cap 5). Run the power (`powerTriggered`), then apply its damage in a fixed order: dirt (row-major), bedrock slabs (by id), crusts (by relic id).
 2. Each relic that reaches crust 0 is collected (`relicCollected`) and its boon applies at once (`boonGained`, then its effect). Chains (Ancient Key) resolve depth first.
 3. Rewards:
-   - Group clears (taps, and Wildfire's tapped group of 2+): Brilliant Cut +1 move, the power charge, geodes (each `geodeCleared` plus a random Lv1 power), the 20+ token roll.
+   - Group clears (taps, and Wildfire's tapped group of 2+): Brilliant Cut +1 move, the power charge, geodes (each `geodeCleared` plus a Lv1 power of the geode's colour), the 20+ token roll.
    - After a power: the Volatile Mix roll.
 4. Settle: gravity (blocks only, whole column), then scroll, then free stranded relics (except sealed ones). Repeat while something was freed.
 5. Moves: a tap, transmute or power trigger costs 1. A power trigger at 0 moves is free (last chance).
@@ -120,8 +120,8 @@ Actions only accept positions inside the visible window (`out_of_view`). All ran
   - a same-colour power merges in place (`max(old, new) + 1`, cap 5; the slot keeps its age);
   - otherwise it takes a free slot;
   - otherwise it replaces the lowest level in that slot (tie: the oldest, lowest `seq`); if that lowest level is still higher than the new power's, the new power is skipped (`powerSkipped`, toast + telemetry).
-  Random powers (geode, Star Amulet, Volatile Mix) can be any of the 5 kinds, even on 4-colour levels.
-- **What charges:** only real group clears, which means a tap or **Wildfire's tapped group** (2+). That group behaves exactly like a tap: it charges, pays geodes, triggers Brilliant Cut and rolls for the token. Gems destroyed by a power (burnt, swept, struck, drilled) never charge powers. This prevents endless power chains. Geodes are the exception: a geode destroyed by a power still pays its random Lv1 power (`geodeCleared` + `powerCharged` source geode, timed to when the power reaches it; once per geode, so Wildfire's group geodes are not paid twice). Owner playtest 2026-11-23.
+  Random powers (Star Amulet, Volatile Mix) can be any of the 5 kinds, even on 4-colour levels. A geode always grants its own colour (owner playtest 2026-11-24).
+- **What charges:** only real group clears, which means a tap or **Wildfire's tapped group** (2+). That group behaves exactly like a tap: it charges, pays geodes, triggers Brilliant Cut and rolls for the token. Gems destroyed by a power (burnt, swept, struck, drilled) never charge powers. This prevents endless power chains. Geodes are the exception: a geode destroyed by a power still pays its Lv1 power (`geodeCleared` + `powerCharged` source geode, timed to when the power reaches it; once per geode, so Wildfire's group geodes are not paid twice). Owner playtest 2026-11-23.
 - **Touch rule:** every power touches the tapped cell, so bedrock there shatters the whole slab, for every power. Powers only reach the visible window and never destroy relics; they chip crusts (times the Ancient Key multiplier).
 - **Wildfire:**
   - Clears the tapped gem's group, even of size 1. On a non-gem tap, the fire starts at that cell.
@@ -134,12 +134,15 @@ Actions only accept positions inside the visible window (`out_of_view`). All ran
   - Cells are ordered outwards (Manhattan) for the wave animation.
 - **Earthshaker:**
   - The origin is the tapped gem's group (or the tapped cell). The area is every cell within **Chebyshev** distance of the radius: a square, which reads naturally on the grid.
-  - Dirt in the area takes the level's damage, each relic touching it takes the level's chips once, and slabs in it shatter. Gems are untouched.
+  - Fissures: from the tapped cell, 2 / 2 / 3 / 3 / 4 cracks set off in distinct random headings (of 8, rng). Each step turns 45 degrees left or right of its heading with 1/4 chance each (never back), so a crack wanders but always moves away. Cells in the square or already cracked are passed over; a crack ends after 2 / 3 / 3 / 4 / 4 new cells or at the edge of the view. Fissures are not previewed (only the square is).
+  - Dirt in the square and the fissures takes 2 / 2 / 3 / 3 / 3 damage (Lv3+ clears any dirt, max hp is 3), each relic touching them takes the level's chips once, and slabs in them shatter. Gems are untouched.
+  - Radius 1 / 1 / 2 / 2 / 3, crust chips 1 / 1 / 2 / 2 / 3 (owner playtest 2026-11-24: buffed, then rebalanced: no one-shot below Lv3, random fissures).
 - **Chain Lightning:**
   - The tapped gem is struck first (if the tap was on a gem), then distinct random visible gems (rng), up to N.
   - Each strike destroys its gem, deals 1 damage to each adjacent dirt and 1 chip to each adjacent relic, and shatters adjacent slabs. Damage is **per strike**, so it adds up.
 - **Drill:**
-  - Bores straight down from the tapped cell for 3, 5, 8 or 12 rows. Lv5 reaches the bottom of the view and is 3 wide.
+  - Bores straight down from the tapped cell for 4, 6 or 8 rows; Lv4 and Lv5 reach the bottom of the view, and Lv5 is 3 wide.
+  - Break-through: on the last bored row it also hits the cells within 1 / 1 / 2 / 2 columns of the tapped column; at Lv5 the whole row (buffed after owner playtest 2026-11-24).
   - Gems and dirt are destroyed outright, relics are chipped by 2 once, and slabs shatter. It bores through everything.
 - **Last chance:** a level with 0 moves and a power in the tray is still playing. Arming and triggering are free then, so the held power stays usable. Group taps and transmute return `no_moves`.
 
@@ -312,7 +315,7 @@ v2 (2026-11-20): stamps removed; gem powers, boons, bosses, perks screen.
   - Overlays: `LevelEnd` (win: stars, relics x/goal + bonus, boons, tokens, perk point; fail: continue once, retry), `PerkPick` (perk offer after a point: 3 cards + "Save for later"), `Perks` (perks screen: 4 paths x 2 nodes, points, tokens, next point level, Learn, Reforge with confirm), `LevelSelect` (boss tiles, perks button), `Settings`, `?debug=1` `Debug` (telemetry summary incl. powers used/earned, boons, geodes, bonus relics, tokens).
 - **Attempts:** every level start, retry and level change creates a new attempt with a fresh seed (`(Date.now() ^ random) >>> 0`), so gems, bonus relics, relic types and geodes re-roll ("New gems every try!").
 - **Powers (input):** tap a tray token to arm it (free; glowing tinted ring, token lifts, pulse), tap it again to disarm; arming another slot moves the arm. While armed, a reticle follows the mouse over the board, or appears on touch press and follows the finger; the power's certain area is shaded (`powerPreview.ts`, unit-tested against core: Tidal lines, Drill path, Earthshaker square, Wildfire tapped group, Lightning tapped cell). Releasing on a cell fires it; releasing off the board keeps it armed. A hint pill under the board names the power ("Drill Lv2 • Tap the board"; "Free!" at 0 moves).
-- **Power VFX (`view/PowerFx.ts`):** per-power choreography timed by `timeline.ts` `powerTiming` (450-950 ms; input locked; damage events land when the effect reaches their cell; then gravity/scroll). Wildfire: flames leap cell to cell in `burnt` order, gems char then pop with embers. Tidal Wave: water streaks sweep out along rows/columns, gems wash away with droplets. Earthshaker: stomp, hard rumble, shock rings, rocks off dirt/stone, gems rattle. Chain Lightning: flickering bolts strike to strike with a rising `zap` per strike and blue sparks. Drill: a spinning bit bores down spraying rock chunks, gems burst as it passes. All sprites pooled (cap 120), particle emitters capped (60-140 each).
+- **Power VFX (`view/PowerFx.ts`):** per-power choreography timed by `timeline.ts` `powerTiming` (450-950 ms; input locked; damage events land when the effect reaches their cell; then gravity/scroll). Wildfire: flames leap cell to cell in `burnt` order, gems char then pop with embers. Tidal Wave: water streaks sweep out along rows/columns, gems wash away with droplets. Earthshaker: stomp, hard rumble, shock rings, rocks off dirt/stone, gems rattle; then the fissures crack outwards cell by cell (60 ms a cell) with glow, rocks and dust. Chain Lightning: flickering bolts strike to strike with a rising `zap` per strike and blue sparks. Drill: a spinning bit bores down spraying rock chunks, gems burst as it passes, then a break-through burst runs sideways along the last row. All sprites pooled (cap 120), particle emitters capped (60-140 each).
 - **Tray display:** `TrayView` keeps its own displayed copy so charges land when their flight arrives (merge = level-up pop with pips filling, replace = old token drops out); the scene re-syncs it from the core tray whenever no charge flight is pending.
 - **Relics and boons:** relic reveal (hit-stop, glow, arc into the next HUD slot; extra relics beyond the goal add gold-starred bonus slots), then a boon banner ("Chalice: Powers +1", `boon` sound) whose icon flies into the boons row; Sun Coin "+2" flies into the move counter, Star Amulet's power flies from the relic to the tray, Ancient Key crusts crack after the reveal. Tap a boon for a one-line tooltip. Geodes twinkle; clearing one bursts into crystal glints and its power flies to the tray.
 - **Bosses:** levels with `def.boss` open with a "BOSS LEVEL" ribbon and a slam-in crest (`level_start` pitched down + low `bedrock_shatter`), show the crest in the HUD title, use the violet boss tile in level select, and win with a bigger confetti storm.

@@ -1,7 +1,8 @@
 // Where an armed power will act if fired at a cell (pure, unit-tested): drawn under the reticle so the player sees
 // the shape before committing. Mirrors the core rules (src/core/powers.ts); random parts (how far Wildfire spreads,
-// which gems Chain Lightning picks) are not previewed, only their sure part (the tapped group / the tapped gem).
-import { COLUMNS, DRILL_ROWS, SHAKER_RADIUS, TIDAL_LINES, VISIBLE_ROWS, findGroup, isVisible, powerKind } from '../core';
+// which gems Chain Lightning picks, where Earthshaker's fissures crack) are not previewed, only their sure part
+// (the tapped group / the tapped gem / the shaken square).
+import { COLUMNS, drillShape, shakerArea, TIDAL_LINES, VISIBLE_ROWS, findGroup, isVisible, powerKind } from '../core';
 import type { LevelState, Pos, PowerKind, PowerLevel } from '../core';
 
 export interface PowerPreview {
@@ -29,20 +30,13 @@ export function previewPower(state: LevelState, at: Pos): PowerPreview | null {
     if (x >= 0 && x < COLUMNS && y >= top && y <= bottom) cells.push({ x, y });
   };
   switch (power) {
-    case 'wildfire':
-    case 'earthshaker': {
+    case 'wildfire': {
       const group = findGroup(state, at);
-      const origin = group.length ? group : [at];
-      if (power === 'wildfire') {
-        cells.push(...origin.map((q) => ({ ...q })));
-        break;
-      }
-      const r = SHAKER_RADIUS[level - 1] ?? 1;
-      for (let y = top; y <= bottom; y++) {
-        for (let x = 0; x < COLUMNS; x++) {
-          if (origin.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) <= r)) push(x, y);
-        }
-      }
+      cells.push(...(group.length ? group : [at]).map((q) => ({ ...q })));
+      break;
+    }
+    case 'earthshaker': {
+      for (const q of shakerArea(state, at, level).area) push(q.x, q.y);
       break;
     }
     case 'tidal': {
@@ -58,9 +52,8 @@ export function previewPower(state: LevelState, at: Pos): PowerPreview | null {
       push(at.x, at.y);
       break;
     case 'drill': {
-      const rows = DRILL_ROWS[level - 1] ?? 3;
-      const cols = level === 5 ? [at.x - 1, at.x, at.x + 1] : [at.x];
-      for (let y = at.y; y <= Math.min(at.y + rows - 1, bottom); y++) for (const x of cols) push(x, y);
+      const shape = drillShape(state, at, level);
+      for (const p of [...shape.bore, ...shape.blast]) push(p.x, p.y);
       break;
     }
   }

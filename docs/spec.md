@@ -57,7 +57,7 @@ Each **attempt** gets a fresh random seed, while the level's structure stays aut
   - **Gem colours:** re-rolled, using the level's clustering.
   - **Bonus relics:** 0–3 extra relics at random spots, so a level can have more relics than its goal.
   - **Relic types:** each type grants a different boon (see below).
-  - **Geodes:** rare sparkling geode gems, about 1 in 60. Clearing one in a group, or destroying it with a power, grants a random level-1 power (owner playtest 2026-11-23).
+  - **Geodes:** rare sparkling geode gems, about 1 in 60. Clearing one in a group, or destroying it with a power, grants a level-1 power of the geode's own colour (owner playtest 2026-11-23; own colour 2026-11-24).
 - **Boss levels** (owner request 2026-11-20): a few levels are **boss levels**, shown to the player with a boss badge, a "BOSS LEVEL" intro banner and a distinct level-select tile. They roll many bonus relics and more geodes and act as the climax of each stretch of levels.
 - **Calibration:** move limits are calibrated over many random attempts, so the win-rate targets hold on average while attempts still vary.
 
@@ -83,9 +83,9 @@ Each **attempt** gets a fresh random seed, while the level's structure stays aut
 |---|---|---|
 | Ruby | **Wildfire** | Clears the tapped group (if any). Fire then spreads outwards from the cleared cells to 3 / 6 / 10 / 15 / 22 more gems of any colour. Burnt gems count as cleared for dirt and crust damage. |
 | Sapphire | **Tidal Wave** | Clears lines through the tapped cell: row / row + column / 3 rows / 3 rows + column / 3 rows + 3 columns. Gems in the lines are destroyed; dirt and crust in them take 1 damage. |
-| Emerald | **Earthshaker** | Shakes the earth around the tapped group (or cell), within radius 1 / 1 / 2 / 2 / 3. Dirt takes 2 / 3 / 3 / 4 / 5 damage and crusts 1 / 1 / 2 / 2 / 2. Gems in range are left alone. |
+| Emerald | **Earthshaker** | Shakes the earth around the tapped group (or cell), within radius 1 / 1 / 2 / 2 / 3, then 2 / 2 / 3 / 3 / 4 fissures crack outwards in random directions, wandering as they go, each reaching 2 / 3 / 3 / 4 / 4 cells beyond the square. Dirt in the square and the fissures takes 2 / 2 / 3 / 3 / 3 damage (from Lv3 it clears any dirt, 3 being the most any dirt has); crusts touched are chipped by 1 / 1 / 2 / 2 / 3. Gems are left alone. (Buffed 2026-11-24; rebalanced the same day after owner playtest: no one-shot below Lv3, random fissures.) |
 | Topaz | **Chain Lightning** | Strikes 3 / 5 / 8 / 12 / 16 random visible gems, different every time. Each struck gem is destroyed and deals 1 damage to adjacent dirt and crust. |
-| Amethyst | **Drill** | Bores straight down from the tapped cell for 3 / 5 / 8 / 12 rows / all visible rows. It is 1 cell wide, or 3 at Lv5. It destroys gems and dirt outright and chips crusts by 2. |
+| Amethyst | **Drill** | Bores straight down from the tapped cell for 4 / 6 / 8 rows / all visible rows / all visible rows. It is 1 cell wide, or 3 at Lv5. On its last row it breaks through sideways, 1 / 1 / 2 / 2 cells to each side, or the whole row at Lv5. It destroys gems and dirt outright and chips crusts by 2. (Buffed 2026-11-24.) |
 
 - **Bedrock:** any power that touches a slab shatters the whole slab.
 - **Solvability:** a level whose required relics are sealed by bedrock starts with a free power in the tray (any power breaks a slab). The generator only accepts layouts a bot can clear.

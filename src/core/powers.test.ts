@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { armPower, disarmPower, tap } from './actions';
-import { DRILL_ROWS, LIGHTNING_STRIKES, WILDFIRE_SPREAD } from './powers';
+import { DRILL_ROWS, LIGHTNING_STRIKES, SHAKER_DIRT, SHAKER_FISSURE_LENGTH, SHAKER_FISSURES, WILDFIRE_SPREAD } from './powers';
 import { ascii, pw, raw } from './testkit';
 import type { ActionResult, CoreEvent, GemColor, LevelState, Pos, PowerLevel } from './types';
 
@@ -208,15 +208,15 @@ describe('Wildfire (ruby)', () => {
       const s = raw(['rbgyrbgy', ...checker(9).slice(1), 'rbgyrbgy', 'gyrbgyrA'], { geodes: [[2, 0]] });
       const events = fire(s, color, 1, at);
       expect(ofType(events, 'geodeCleared')).toEqual([{ type: 'geodeCleared', at: { x: 2, y: 0 }, color: 2 }]);
-      expect(ofType(events, 'powerCharged').map((e) => [e.level, e.source])).toEqual([[1, 'geode']]);
+      expect(ofType(events, 'powerCharged').map((e) => [e.color, e.level, e.source])).toEqual([[2, 1, 'geode']]);
     }
   });
 
-  it('a geode in the tapped group pays a random Lv1 power', () => {
+  it('a geode in the tapped group pays a Lv1 power of its own colour', () => {
     const s = raw(['rr......', ...checker(9).slice(1), 'rbgyrbgy', 'gyrbgyrA'], { geodes: [[1, 0]] });
     const events = fire(s, 0, 1, { x: 0, y: 0 });
     expect(ofType(events, 'geodeCleared')).toEqual([{ type: 'geodeCleared', at: { x: 1, y: 0 }, color: 0 }]);
-    expect(ofType(events, 'powerCharged')[0]).toMatchObject({ level: 1, source: 'geode' });
+    expect(ofType(events, 'powerCharged')[0]).toMatchObject({ color: 0, level: 1, source: 'geode' });
   });
 
   it('burnt and cleared cells damage adjacent dirt (+Compass), chip adjacent relics once, shatter adjacent slabs', () => {
@@ -275,17 +275,16 @@ describe('Tidal Wave (sapphire)', () => {
 describe('Earthshaker (emerald)', () => {
   it.each<[PowerLevel, number, number, number]>([
     [1, 1, 2, 1],
-    [2, 1, 3, 1],
+    [2, 1, 2, 1],
     [3, 2, 3, 2],
-    [4, 2, 4, 2],
-    [5, 3, 5, 2],
+    [4, 2, 3, 2],
+    [5, 3, 3, 3],
   ])('Lv%i: Chebyshev radius %i, dirt -%i, crust -%i; gems are left alone', (level, radius, dirt, crust) => {
-    // Lone emerald at (3,3); dirt 3 hp at distance (r, r) diagonally, relic just outside the radius + inside.
+    // Lone emerald at (3,3); dirt 3 hp at distance (r, r) diagonally, relic at distance r.
     const rows = Array.from({ length: 10 }, () => E);
     const set = (x: number, y: number, ch: string) => (rows[y] = rows[y]!.slice(0, x) + ch + rows[y]!.slice(x + 1));
     set(3, 3, 'g');
     set(3 + radius, 3 + radius, '3');
-    set(3 + radius + 1, 3, '3'); // just outside
     set(3 - radius, 3, 'A');
     const s = raw([...rows, 'gyrbgyrb', 'rbgyrbgB']);
     s.relics[0]!.crust = 5;
@@ -293,8 +292,54 @@ describe('Earthshaker (emerald)', () => {
     const t = trig(events);
     expect(t.effect).toMatchObject({ power: 'earthshaker', radius, origin: [{ x: 3, y: 3 }] });
     expect(t.destroyed).toEqual([]);
-    expect(ofType(events, 'dirtDamaged')).toEqual([{ type: 'dirtDamaged', at: { x: 3 + radius, y: 3 + radius }, hp: Math.max(0, 3 - dirt) }]);
+    expect(ofType(events, 'dirtDamaged')).toEqual([{ type: 'dirtDamaged', at: { x: 3 + radius, y: 3 + radius }, hp: 3 - dirt }]);
     expect(ofType(events, 'crustChipped')[0]).toEqual({ type: 'crustChipped', relicId: 0, crust: 5 - crust });
+  });
+
+  it('only Lv3+ one-shots hard dirt', () => {
+    for (const level of LEVELS) {
+      const s = raw(['3.......', ...checker(9).slice(1)]);
+      const events = fire(s, 2, level, { x: 1, y: 0 });
+      expect(ofType(events, 'dirtDamaged').find((d) => d.at.x === 0 && d.at.y === 0)?.hp).toBe(level >= 3 ? 0 : 1);
+    }
+  });
+
+  it.each(LEVELS)('Lv%i: fissures crack outwards from the square, randomly, and damage the dirt they reach', (level) => {
+    const fissures = SHAKER_FISSURES[level - 1]!;
+    const length = SHAKER_FISSURE_LENGTH[level - 1]!;
+    const dirt = SHAKER_DIRT[level - 1]!;
+    const shapes = new Set<string>();
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = raw([...Array.from({ length: 10 }, () => '33333333'), 'rbgyrbgy', 'gyrbgyrA']);
+      s.rngState = seed * 7919;
+      const at = { x: 3, y: 4 };
+      const events = fire(s, 2, level, at);
+      const t = trig(events);
+      if (t.effect.power !== 'earthshaker') throw new Error('not a shaker');
+      const { area, fissures: cracks } = t.effect;
+      const k = (p: Pos) => `${p.x},${p.y}`;
+      const inArea = new Set(area.map(k));
+      expect(cracks).toHaveLength(fissures);
+      const seen = new Set<string>();
+      for (const f of cracks) {
+        expect(f.length).toBeLessThanOrEqual(length);
+        f.forEach((p, i) => {
+          expect(inArea.has(k(p))).toBe(false);
+          expect(seen.has(k(p))).toBe(false);
+          seen.add(k(p));
+          expect(p.x >= 0 && p.x < 8 && p.y >= 0 && p.y < 10).toBe(true);
+          // Each crack step touches (8-way) its previous cell, the square, or a crack it crossed.
+          const prev = [...(i ? [f[i - 1]!] : []), ...area, ...cracks.flat()];
+          expect(prev.some((q) => Math.max(Math.abs(q.x - p.x), Math.abs(q.y - p.y)) === 1)).toBe(true);
+        });
+      }
+      if (level === 1) for (const f of cracks) expect(f).toHaveLength(length); // room for the full crack
+      const hit = ofType(events, 'dirtDamaged');
+      expect(new Set(hit.map((d) => k(d.at)))).toEqual(new Set([...area, ...cracks.flat()].map(k)));
+      for (const d of hit) expect(d.hp).toBe(3 - dirt);
+      shapes.add(JSON.stringify(cracks));
+    }
+    expect(shapes.size).toBeGreaterThan(3);
   });
 
   it('shakes around the whole tapped group', () => {
@@ -348,19 +393,27 @@ describe('Chain Lightning (topaz)', () => {
 });
 
 describe('Drill (amethyst)', () => {
-  it.each(LEVELS)('Lv%i bores down from the tapped cell (Lv5: to the bottom, 3 wide)', (level) => {
+  it.each<[PowerLevel, number, number[], number[]]>([
+    [1, 4, [3], [2, 4]],
+    [2, 6, [3], [2, 4]],
+    [3, 8, [3], [1, 2, 4, 5]],
+    [4, 9, [3], [1, 2, 4, 5]],
+    [5, 9, [2, 3, 4], [0, 1, 5, 6, 7]],
+  ])('Lv%i bores %i rows down (cols %j), then breaks through sideways on the last row (cols %j)', (level, rows, cols, side) => {
     const s = raw(checker());
     const t = trig(fire(s, 4, level, { x: 3, y: 1 }));
-    const rows = Math.min(DRILL_ROWS[level - 1]!, 9);
-    const cols = level === 5 ? [2, 3, 4] : [3];
-    expect(t.effect).toMatchObject({ power: 'drill', cols, from: 1, to: 1 + rows - 1 });
-    expect(t.destroyed).toHaveLength(rows * cols.length);
+    const to = 1 + rows - 1;
+    expect(DRILL_ROWS[level - 1]).toBeGreaterThanOrEqual(rows);
+    expect(t.effect).toMatchObject({ power: 'drill', cols, from: 1, to, blast: side.map((x) => ({ x, y: to })) });
+    expect(t.destroyed).toHaveLength(rows * cols.length + side.length);
   });
 
-  it('Lv5 at the edge is 2 wide; the path stops at the bottom of the view', () => {
+  it('Lv5 at the edge is 2 wide; the path stops at the bottom of the view; the blast takes the rest of that row', () => {
     const s = raw(checker());
     const t = trig(fire(s, 4, 5, { x: 0, y: 7 }));
     expect(t.effect).toMatchObject({ cols: [0, 1], from: 7, to: 9 });
+    if (t.effect.power !== 'drill') throw new Error('not a drill');
+    expect(t.effect.blast.map((p) => p.x)).toEqual([2, 3, 4, 5, 6, 7]);
   });
 
   it('destroys dirt outright, chips relics by 2 (collecting a 2-crust relic), bores through bedrock', () => {

@@ -9,7 +9,7 @@
 // - Gems destroyed by a power never charge powers. The one exception is Wildfire's initial tapped GROUP: it is
 //   a real group clear (charges a power at the threshold, pays geodes, Brilliant Cut, the 20+ token roll),
 //   exactly like a tap. This prevents endless power chains.
-// - Geodes destroyed by a power still pay out their random Lv1 power (owner playtest 2026-11-23: a geode that
+// - Geodes destroyed by a power still pay out their Lv1 power (of the geode's colour) (owner playtest 2026-11-23: a geode that
 //   vanished without its power felt wrong). `destroyed` flags them; actions.ts pays them.
 //
 // Per power ("cleared" = cells that deal adjacency damage):
@@ -22,15 +22,20 @@
 //   Gems in the lines are destroyed; dirt takes 1 damage; relics 1 chip; slabs in the lines shatter. No
 //   adjacency damage.
 // - Earthshaker: origin = the tapped gem's group (or the tapped cell). Area = cells within CHEBYSHEV radius r
-//   of any origin cell (a square ring, reads naturally on a grid). Dirt in the area takes D damage, relics
-//   with any cell in it C chips, slabs in it shatter. Gems are left alone.
+//   of any origin cell (a square ring, reads naturally on a grid). From the tapped cell, F fissures crack
+//   outwards in distinct random directions (of 8); each wanders +-45 degrees per step (rng) around its heading
+//   and reaches L cells beyond the area (fewer at the edge of the view). Dirt in the area and the fissures takes
+//   D damage, relics with any cell in them C chips once, slabs in them shatter. Gems are left alone.
+//   (Owner playtest 2026-11-24: one-shotting all dirt at Lv1 was too strong; fissures add randomness.)
 // - Chain Lightning: strikes N distinct visible gems: the tapped gem first (if the tap was on a gem), the
 //   rest uniformly at random (rng). Each struck gem is destroyed and deals 1 damage to each orthogonally
 //   adjacent dirt and 1 chip to each adjacent relic (per strike: damage from several strikes adds up), and
 //   shatters adjacent slabs.
-// - Drill: from the tapped cell straight down for L rows (Lv5: to the bottom of the view, 3 columns wide:
-//   tapped column +-1). Destroys gems and dirt outright, chips each relic by 2 once, shatters slabs; it bores
-//   through everything.
+// - Drill: from the tapped cell straight down for L rows (Lv4-5: to the bottom of the view; Lv5 3 columns
+//   wide: tapped column +-1). At the last bored row it breaks through sideways: the cells within B columns of
+//   the tapped column on that row (Lv5: the whole row) are hit too. Destroys gems and dirt outright, chips each
+//   relic by 2 once, shatters slabs; it bores through everything. `drillShape` is shared with the preview.
+//   (Owner playtest 2026-11-24: drill was weak at low levels and lost to Tidal Wave at Lv5.)
 import { EMPTY, NEIGHBOURS, cellAt, drawInt, findGroup, isVisible, relicById, setCell } from './board';
 import { chipMultiplier, collectRelic, damageDirt, key, shatterBedrock } from './effects';
 import { COLUMNS, POWER_KINDS, VISIBLE_ROWS } from './types';
@@ -39,11 +44,25 @@ import type { CoreEvent, GemColor, LevelState, Pos, PowerEffect, PowerKind, Powe
 export const WILDFIRE_SPREAD = [3, 6, 10, 15, 22] as const;
 export const LIGHTNING_STRIKES = [3, 5, 8, 12, 16] as const;
 /** Rows bored per level; Lv5 = all visible rows below the tap. */
-export const DRILL_ROWS = [3, 5, 8, 12, VISIBLE_ROWS] as const;
+export const DRILL_ROWS = [4, 6, 8, VISIBLE_ROWS, VISIBLE_ROWS] as const;
+/** Bore half-width (0 = 1 column, 1 = 3 columns). */
+export const DRILL_HALF_WIDTH = [0, 0, 0, 0, 1] as const;
+/** Break-through half-width on the last bored row; Lv5 = the whole row. */
+export const DRILL_BLAST = [1, 1, 2, 2, COLUMNS] as const;
 export const DRILL_CRUST = 2;
+/** Certain (previewed) area radius. */
 export const SHAKER_RADIUS = [1, 1, 2, 2, 3] as const;
-export const SHAKER_DIRT = [2, 3, 3, 4, 5] as const;
-export const SHAKER_CRUST = [1, 1, 2, 2, 2] as const;
+/** Dirt hp is at most 3: Lv3+ clears any dirt it reaches, Lv1-2 only cracks hard dirt. */
+export const SHAKER_DIRT = [2, 2, 3, 3, 3] as const;
+export const SHAKER_CRUST = [1, 1, 2, 2, 3] as const;
+/** Random fissures per level, and the cells each reaches beyond the area. */
+export const SHAKER_FISSURES = [2, 2, 3, 3, 4] as const;
+export const SHAKER_FISSURE_LENGTH = [2, 3, 3, 4, 4] as const;
+/** The 8 headings, clockwise from north. */
+const HEADINGS: readonly Pos[] = [
+  { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
+  { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },
+];
 /** Tidal Wave line pattern per level: row offsets and column offsets from the tapped cell. */
 export const TIDAL_LINES: readonly { rows: readonly number[]; cols: readonly number[] }[] = [
   { rows: [0], cols: [] },
@@ -244,15 +263,49 @@ function tidal(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): Powe
   return { effect: { power: 'tidal', rows, cols }, cells, destroyed, group: [], groupColor: null, groupGeodes: [] };
 }
 
-function earthshaker(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): PowerOutcome {
+/** The certain Earthshaker area (Chebyshev radius around the origin), shared with the preview. */
+export function shakerArea(state: LevelState, at: Pos, level: PowerLevel): { origin: Pos[]; radius: number; area: Pos[] } {
   const group = tappedGroup(state, at);
   const origin = group.length ? group : [{ ...at }];
-  const r: number = lv(SHAKER_RADIUS, level);
+  const radius: number = lv(SHAKER_RADIUS, level);
   const cheb = (p: Pos) => Math.min(...origin.map((o) => Math.max(Math.abs(o.x - p.x), Math.abs(o.y - p.y))));
-  const area = visibleCells(state).filter((p) => cheb(p) <= r);
+  const area = visibleCells(state).filter((p) => cheb(p) <= radius);
   area.sort((a, b) => cheb(a) - cheb(b) || byRowMajor(a, b));
+  return { origin, radius, area };
+}
+
+/** Random fissures from the tapped cell: each lists, in travel order, its cells outside `area`. */
+function shakerFissures(state: LevelState, at: Pos, level: PowerLevel, area: Pos[]): Pos[][] {
+  const taken = new Set(area.map((p) => key(p.x, p.y)));
+  const headings = HEADINGS.map((_, i) => i);
+  shuffleInPlace(state, headings);
+  const length: number = lv(SHAKER_FISSURE_LENGTH, level);
+  const fissures: Pos[][] = [];
+  for (const base of headings.slice(0, lv(SHAKER_FISSURES, level))) {
+    const cells: Pos[] = [];
+    let p = { ...at };
+    // Bounded: every step moves at least one cell away along the base heading's axis.
+    for (let step = 0; step < COLUMNS + VISIBLE_ROWS && cells.length < length; step++) {
+      const turn = drawInt(state, 4); // 0: left, 1: right, else straight on
+      const d = HEADINGS[(base + (turn === 0 ? 7 : turn === 1 ? 1 : 0)) % 8]!;
+      p = { x: p.x + d.x, y: p.y + d.y };
+      if (!isVisible(state, p.x, p.y)) break;
+      const k = key(p.x, p.y);
+      if (taken.has(k)) continue;
+      taken.add(k);
+      cells.push(p);
+    }
+    fissures.push(cells);
+  }
+  return fissures;
+}
+
+function earthshaker(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): PowerOutcome {
+  const { origin, radius, area } = shakerArea(state, at, level);
+  const fissures = shakerFissures(state, at, level, area);
   const relicSeen = new Set<number>();
-  for (const p of area) {
+  const cells = [...area, ...fissures.flat()];
+  for (const p of cells) {
     const c = cellAt(state, p.x, p.y);
     if (c?.kind === 'relic') {
       if (!relicSeen.has(c.id)) dmg.hit(state, p, 0, lv(SHAKER_CRUST, level));
@@ -260,8 +313,8 @@ function earthshaker(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage)
     } else if (c?.kind !== 'block') dmg.hit(state, p, lv(SHAKER_DIRT, level), 0);
   }
   return {
-    effect: { power: 'earthshaker', origin: origin.map((p) => ({ ...p })), radius: r, area },
-    cells: area,
+    effect: { power: 'earthshaker', origin: origin.map((p) => ({ ...p })), radius, area, fissures },
+    cells,
     destroyed: [],
     group: [],
     groupColor: null,
@@ -293,13 +346,26 @@ function lightning(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): 
   return { effect: { power: 'lightning', strikes }, cells: strikes, destroyed, group: [], groupColor: null, groupGeodes: [] };
 }
 
-function drill(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): PowerOutcome {
-  const rows: number = lv(DRILL_ROWS, level);
-  const cols = (level === 5 ? [at.x - 1, at.x, at.x + 1] : [at.x]).filter((x) => x >= 0 && x < COLUMNS);
+/** The Drill's footprint: bored columns, rows `from..to`, the bore cells and the break-through cells. */
+export function drillShape(state: LevelState, at: Pos, level: PowerLevel): { cols: number[]; to: number; bore: Pos[]; blast: Pos[] } {
+  const half: number = lv(DRILL_HALF_WIDTH, level);
+  const cols: number[] = [];
+  for (let x = at.x - half; x <= at.x + half; x++) if (x >= 0 && x < COLUMNS) cols.push(x);
   const bottom = Math.min(state.scroll + VISIBLE_ROWS, state.grid.length) - 1;
-  const to = Math.min(at.y + rows - 1, bottom);
-  const path: Pos[] = [];
-  for (let y = at.y; y <= to; y++) for (const x of cols) path.push({ x, y });
+  const to = Math.min(at.y + lv(DRILL_ROWS, level) - 1, bottom);
+  const bore: Pos[] = [];
+  for (let y = at.y; y <= to; y++) for (const x of cols) bore.push({ x, y });
+  const reach: number = lv(DRILL_BLAST, level);
+  const blast: Pos[] = [];
+  for (let x = Math.max(0, at.x - reach); x <= Math.min(COLUMNS - 1, at.x + reach); x++) {
+    if (!cols.includes(x)) blast.push({ x, y: to });
+  }
+  return { cols, to, bore, blast };
+}
+
+function drill(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): PowerOutcome {
+  const { cols, to, bore, blast } = drillShape(state, at, level);
+  const path = [...bore, ...blast];
   const destroyed: PowerOutcome['destroyed'] = [];
   const relicSeen = new Set<number>();
   for (const p of path) {
@@ -312,7 +378,7 @@ function drill(state: LevelState, at: Pos, level: PowerLevel, dmg: Damage): Powe
     } else dmg.hit(state, p, 0, 0);
   }
   return {
-    effect: { power: 'drill', cols, from: at.y, to, path },
+    effect: { power: 'drill', cols, from: at.y, to, path, blast },
     cells: path,
     destroyed,
     group: [],

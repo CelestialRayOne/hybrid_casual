@@ -51,9 +51,15 @@ export {
   WILDFIRE_SPREAD,
   LIGHTNING_STRIKES,
   DRILL_ROWS,
+  DRILL_HALF_WIDTH,
+  DRILL_BLAST,
+  drillShape,
   SHAKER_RADIUS,
   SHAKER_DIRT,
   SHAKER_CRUST,
+  SHAKER_FISSURES,
+  SHAKER_FISSURE_LENGTH,
+  shakerArea,
   TIDAL_LINES,
 } from './powers';
 export { SUN_COIN_MOVES } from './effects';
